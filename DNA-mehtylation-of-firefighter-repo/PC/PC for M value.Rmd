@@ -1,0 +1,94 @@
+---
+title: "PC for M value"
+output: html_document
+date: "2025-04-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+load("C:\\Users\\Administrator\\Downloads\\Pure_M.RData")
+```
+
+
+
+```{r}
+pr.out <- prcomp(Pure_M[, -(1:4)], scale = TRUE)
+names(pr.out)
+```
+
+```{r}
+dim(pr.out$x)
+head(pr.out$x)
+```
+#PC1 VS PC2
+```{r}
+# Assuming fire_status is a vector like c("Pre", "Pre", "Post", ...)
+# and matches the rows of your methylation data used in PCA
+
+# Base PC1 vs PC2 plot with colors for Pre/Post fire
+plot(pr.out$x[,"PC1"], pr.out$x[,"PC2"],
+     col = ifelse(Pure_M[,2]== "pre", "blue", "red"),
+     pch = 19,
+     xlab = "PC1", ylab = "PC2",
+     main = "PCA of Methylation Data: Pre vs Post Fire")
+
+legend("topright", legend = c("Pre Fire", "Post Fire"),
+       col = c("blue", "red"), pch = 19)
+
+# Optionally show sample names or IDs
+# text(pr.out$x[,"PC1"], pr.out$x[,"PC2"], labels = sample_ids, pos = 3, cex = 0.7)
+
+# Check correlation between PC1 and PC2
+cor(cbind(pr.out$x[,"PC1"], pr.out$x[,"PC2"]))
+
+```
+#var plot
+```{r}
+pr.var <- pr.out$sdev^2
+
+pve <- pr.var / sum(pr.var)
+pve
+par(mfrow = c(1, 2))
+plot(pve, xlab = "Principal Component",
+    ylab = "Proportion of Variance Explained", ylim = c(0, 1),
+    type = "b")
+plot(cumsum(pve), xlab = "Principal Component",
+    ylab = "Cumulative Proportion of Variance Explained",
+    ylim = c(0, 1), type = "b")
+```
+
+##combine the data
+```{r}
+# Extract PC scores
+# Extract only PC1 and PC2 from the PCA results
+pc_scores <- as.data.frame(pr.out$x[, 1:2])
+
+# Combine the outcome variable with PC1 and PC2
+pc_pureM <- cbind(pc_scores, Pure_M)
+celltype <- read.csv("C:\\Users\\Administrator\\Desktop\\Firefighter\\DNA methylation\\cleaned cell type.csv")
+pc_celltype_pureM <- merge(celltype,pc_pureM, by = "Rownames")
+save(pc_celltype_pureM, file = "C:/Users/Administrator/Downloads/pc_celltype_pureM")
+
+```
+#
+
+
+#
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+

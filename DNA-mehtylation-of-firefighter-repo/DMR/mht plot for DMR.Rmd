@@ -1,0 +1,359 @@
+---
+title: "mht plot for DMR"
+author: "ql"
+date: "2025-05-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load data, the data is not q value(it is all the DMR)
+```{r}
+formatted_data_qval <- read.csv("C:\\Users\\Administrator\\Documents\\all DMR with bin size 200\\resu_ipdmr.csv")
+marked_probe <- formatted_data_qval[order(formatted_data_qval$p), ][1:10, ]
+# Mark top 10 probes and rename them as DMR1-DMR10
+marked_probe <- formatted_data_qval[order(formatted_data_qval$p), ][1:10, ]
+marked_probe$probe <- paste0("DMR", 1:10)
+# First order the data by p-value (if not already ordered)
+formatted_data_qval <- formatted_data_qval[order(formatted_data_qval$p), ]
+
+# Rename the top 10 probes in the main dataset
+formatted_data_qval$probe[1:10] <- paste0("DMR", 1:10)
+
+# Update marked_probe to use the renamed probes
+marked_probe <- formatted_data_qval[1:10, ]
+```
+
+#package
+```{r}
+library(ENmix)
+library(ggplot2)
+library(dplyr)
+library(ggrepel)
+```
+
+```{r}
+
+# Prepare data
+chr_levels <- c(as.character(1:22), "X", "Y")
+
+temdata <- data.frame(
+  chr   = formatted_data_qval$chr,
+  start = formatted_data_qval$start,
+  end   = formatted_data_qval$end,
+  p     = formatted_data_qval$p,
+  probe = formatted_data_qval$probe,
+  fdr =  formatted_data_qval$fdr
+) %>%
+  filter(chr %in% chr_levels) %>%
+  mutate(chr = factor(chr, levels = chr_levels)) %>%
+  arrange(chr, start)
+
+# Calculate cumulative position
+offset <- 0
+chr_offsets <- c()
+for (chr in chr_levels) {
+  chr_len <- max(temdata$start[temdata$chr == chr], na.rm = TRUE)
+  chr_offsets[chr] <- offset
+  offset <- offset + chr_len + 1e6
+}
+temdata <- temdata %>%
+  rowwise() %>%
+  mutate(pos_cum = 0.5*(start+end) + chr_offsets[as.character(chr)]) %>%
+  ungroup()
+
+# Mark top 10 probes
+marked_probe <- temdata %>% arrange(p) %>% slice(1:10)
+
+# Plot
+ggplot(temdata, aes(x = pos_cum, y = -log10(p))) +
+  geom_point(aes(color = chr), alpha = 0.6) +
+  geom_point(data = marked_probe, color = "darkorange", size = 2.2) +
+  geom_text_repel(data = marked_probe, aes(label = probe), size = 3,
+                  max.overlaps = 1000, color = "black") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "red") +
+  scale_x_continuous(
+    label = chr_levels,
+    breaks = sapply(chr_levels, function(chr) {
+      mean(temdata$pos_cum[temdata$chr == chr])
+    })
+  ) +
+  labs(x = "Chromosome", y = expression(-log[10](p)), title = "Manhattan Plot with Labeled Top Probes") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+#####################################################################
+# Plot with q-value line legend
+ggplot(temdata, aes(x = pos_cum, y = -log10(p))) +
+  geom_point(aes(color = chr), alpha = 0.6) +
+  geom_point(data = marked_probe, color = "darkorange", size = 2.2) +
+  geom_text_repel(data = marked_probe, aes(label = probe), size = 3,
+                  max.overlaps = 1000, color = "black") +
+  geom_hline(aes(yintercept = -log10(0.05), linetype = "Significance Threshold-0.05"),
+             color = "red", linewidth = 0.8) +
+  scale_linetype_manual(name = "", values = c("Significance Threshold-0.05" = "dashed")) +
+  scale_x_continuous(
+    label = chr_levels,
+    breaks = sapply(chr_levels, function(chr) {
+      mean(temdata$pos_cum[temdata$chr == chr])
+    })
+  ) +
+  labs(x = "Chromosome", y = expression(-log[10](p)), title = "Manhattan Plot with Labeled Top Probes") +
+  theme_minimal() +
+  theme(legend.position = "top")
+########################################################################
+ggplot(temdata, aes(x = pos_cum, y = -log10(p))) +
+  geom_point(color = "black", alpha = 0.6) +  # uniform color for all points
+  geom_point(data = marked_probe, color = "darkorange", size = 2.2) +
+  geom_text_repel(data = marked_probe, aes(label = probe), size = 3,
+                  max.overlaps = 1000, color = "black") +
+  geom_hline(aes(yintercept = -log10(0.05), linetype = "Significance Threshold-0.05"),
+             color = "red", linewidth = 0.8) +
+  scale_linetype_manual(name = "", values = c("Significance Threshold-0.05" = "dashed")) +
+  scale_x_continuous(
+    label = chr_levels,
+    breaks = sapply(chr_levels, function(chr) {
+      mean(temdata$pos_cum[temdata$chr == chr])
+    })
+  ) +
+  labs(x = "Chromosome", y = expression(-log[10](p)), title = "Manhattan Plot with Labeled Top Probes") +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+抽取出前十的DMR命名为DMR1-10，结合上一个code标记出来，；对DMR的位置，变成二分之start+end
+#fdr
+```{r}
+
+# Plot
+ggplot(temdata, aes(x = pos_cum, y = -log10(fdr))) +
+  geom_point(aes(color = chr), alpha = 0.6) +
+  geom_point(data = marked_probe, color = "darkorange", size = 2.2) +
+  geom_text_repel(data = marked_probe, aes(label = probe), size = 3,
+                  max.overlaps = 1000, color = "black") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "red") +
+  scale_x_continuous(
+    label = chr_levels,
+    breaks = sapply(chr_levels, function(chr) {
+      mean(temdata$pos_cum[temdata$chr == chr])
+    })
+  ) +
+  labs(x = "Chromosome", y = expression(-log[10](p)), title = "Manhattan Plot with Labeled Top Probes") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+#####################################################################
+# Plot with q-value line legend
+ggplot(temdata, aes(x = pos_cum, y = -log10(fdr))) +
+  geom_point(aes(color = chr), alpha = 0.6) +
+  geom_point(data = marked_probe, color = "darkorange", size = 2.2) +
+  geom_text_repel(data = marked_probe, aes(label = probe), size = 3,
+                  max.overlaps = 1000, color = "black") +
+  geom_hline(aes(yintercept = -log10(0.05), linetype = "Significance Threshold-0.05"),
+             color = "red", linewidth = 0.8) +
+  scale_linetype_manual(name = "", values = c("Significance Threshold-0.05" = "dashed")) +
+  scale_x_continuous(
+    label = chr_levels,
+    breaks = sapply(chr_levels, function(chr) {
+      mean(temdata$pos_cum[temdata$chr == chr])
+    })
+  ) +
+  
+  labs(x = "Chromosome", y = expression(-log[10](p)), title = "Manhattan Plot with Labeled Top Probes") +
+  theme_minimal() +
+  theme(legend.position = "top")
+########################################################################
+ggplot(temdata, aes(x = pos_cum, y = -log10(fdr))) +
+  geom_point(color = "black", alpha = 0.6) +  # uniform color for all points
+  geom_point(data = marked_probe, color = "darkorange", size = 2.2) +
+  geom_text_repel(data = marked_probe, aes(label = probe), size = 3,
+                  max.overlaps = 1000, color = "black") +
+  geom_hline(aes(yintercept = -log10(0.05), linetype = "Significance Threshold-0.05"),
+             color = "red", linewidth = 0.8) +
+  scale_linetype_manual(name = "", values = c("Significance Threshold-0.05" = "dashed")) +
+  scale_x_continuous(
+    label = chr_levels,
+    breaks = sapply(chr_levels, function(chr) {
+      mean(temdata$pos_cum[temdata$chr == chr])
+    })
+  ) +
+  labs(x = "Chromosome", y = expression(-log[10](p)), title = "Manhattan Plot with Labeled Top Probes") +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+#add
+#  scale_y_continuous(
+#  breaks = c(seq(0, 5, 1), seq(20, 25, 1)),  # Keep only ticks outside 5–15
+#  limits = c(0, max(-log10(temdata$p), na.rm = TRUE))  # ensure upper bound fits all points
+#) +
+
+#try delete y(5-15) for p value
+```{r}
+
+# Plot
+ggplot(temdata, aes(x = pos_cum, y = -log10(p))) +
+  geom_point(aes(color = chr), alpha = 0.6) +
+  geom_point(data = marked_probe, color = "darkorange", size = 2.2) +
+  geom_text_repel(data = marked_probe, aes(label = probe), size = 3,
+                  max.overlaps = 1000, color = "black") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "red") +
+  scale_x_continuous(
+    label = chr_levels,
+    breaks = sapply(chr_levels, function(chr) {
+      mean(temdata$pos_cum[temdata$chr == chr])
+    })
+  ) +
+    scale_y_continuous(
+  breaks = c(seq(0, 5, 1), seq(20, 25, 1)),  # Keep only ticks outside 5–15
+  limits = c(0, max(-log10(temdata$p), na.rm = TRUE))  # ensure upper bound fits all points
+) +
+  labs(x = "Chromosome", y = expression(-log[10](p)), title = "Manhattan Plot with Labeled Top Probes") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+#####################################################################
+# Plot with q-value line legend
+ggplot(temdata, aes(x = pos_cum, y = -log10(p))) +
+  geom_point(aes(color = chr), alpha = 0.6) +
+  geom_point(data = marked_probe, color = "darkorange", size = 2.2) +
+  geom_text_repel(data = marked_probe, aes(label = probe), size = 3,
+                  max.overlaps = 1000, color = "black") +
+  geom_hline(aes(yintercept = -log10(0.05), linetype = "Significance Threshold-0.05"),
+             color = "red", linewidth = 0.8) +
+  scale_linetype_manual(name = "", values = c("Significance Threshold-0.05" = "dashed")) +
+  scale_x_continuous(
+    label = chr_levels,
+    breaks = sapply(chr_levels, function(chr) {
+      mean(temdata$pos_cum[temdata$chr == chr])
+    })
+  ) +
+    scale_y_continuous(
+  breaks = c(seq(0, 5, 1), seq(20, 25, 1)),  # Keep only ticks outside 5–15
+  limits = c(0, max(-log10(temdata$p), na.rm = TRUE))  # ensure upper bound fits all points
+) +
+  labs(x = "Chromosome", y = expression(-log[10](p)), title = "Manhattan Plot with Labeled Top Probes") +
+  theme_minimal() +
+  theme(legend.position = "top")
+########################################################################
+ggplot(temdata, aes(x = pos_cum, y = -log10(p))) +
+  geom_point(color = "black", alpha = 0.6) +  # uniform color for all points
+  geom_point(data = marked_probe, color = "darkorange", size = 2.2) +
+  geom_text_repel(data = marked_probe, aes(label = probe), size = 3,
+                  max.overlaps = 1000, color = "black") +
+  geom_hline(aes(yintercept = -log10(0.05), linetype = "Significance Threshold-0.05"),
+             color = "red", linewidth = 0.8) +
+  scale_linetype_manual(name = "", values = c("Significance Threshold-0.05" = "dashed")) +
+  scale_x_continuous(
+    label = chr_levels,
+    breaks = sapply(chr_levels, function(chr) {
+      mean(temdata$pos_cum[temdata$chr == chr])
+    })
+  ) +
+    scale_y_continuous(
+  breaks = c(seq(0, 5, 1), seq(20, 25, 1)),  # Keep only ticks outside 5–15
+  limits = c(0, max(-log10(temdata$p), na.rm = TRUE))  # ensure upper bound fits all points
+) +
+  labs(x = "Chromosome", y = expression(-log[10](p)), title = "Manhattan Plot with Labeled Top Probes") +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+
+
+#try delete y(5-15) for fdr value
+```{r}
+# Plot
+ggplot(temdata, aes(x = pos_cum, y = -log10(fdr))) +
+  geom_point(aes(color = chr), alpha = 0.6) +
+  geom_point(data = marked_probe, color = "darkorange", size = 2.2) +
+  geom_text_repel(data = marked_probe, aes(label = probe), size = 3,
+                  max.overlaps = 1000, color = "black") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "red") +
+  scale_x_continuous(
+    label = chr_levels,
+    breaks = sapply(chr_levels, function(chr) {
+      mean(temdata$pos_cum[temdata$chr == chr])
+    })
+  ) +
+    scale_y_continuous(
+  breaks = c(seq(0, 5, 1), seq(20, 25, 1)),  # Keep only ticks outside 5–15
+  limits = c(0, max(-log10(temdata$p), na.rm = TRUE))  # ensure upper bound fits all points
+) +
+  labs(x = "Chromosome", y = expression(-log[10](p)), title = "Manhattan Plot with Labeled Top Probes") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+#####################################################################
+# Plot with q-value line legend
+ggplot(temdata, aes(x = pos_cum, y = -log10(fdr))) +
+  geom_point(aes(color = chr), alpha = 0.6) +
+  geom_point(data = marked_probe, color = "darkorange", size = 2.2) +
+  geom_text_repel(data = marked_probe, aes(label = probe), size = 3,
+                  max.overlaps = 1000, color = "black") +
+  geom_hline(aes(yintercept = -log10(0.05), linetype = "Significance Threshold-0.05"),
+             color = "red", linewidth = 0.8) +
+  scale_linetype_manual(name = "", values = c("Significance Threshold-0.05" = "dashed")) +
+  scale_x_continuous(
+    label = chr_levels,
+    breaks = sapply(chr_levels, function(chr) {
+      mean(temdata$pos_cum[temdata$chr == chr])
+    })
+  ) +
+    scale_y_continuous(
+  breaks = c(seq(0, 5, 1), seq(20, 25, 1)),  # Keep only ticks outside 5–15
+  limits = c(0, max(-log10(temdata$p), na.rm = TRUE))  # ensure upper bound fits all points
+) +
+  labs(x = "Chromosome", y = expression(-log[10](p)), title = "Manhattan Plot with Labeled Top Probes") +
+  theme_minimal() +
+  theme(legend.position = "top")
+########################################################################
+ggplot(temdata, aes(x = pos_cum, y = -log10(fdr))) +
+  geom_point(color = "black", alpha = 0.6) +  # uniform color for all points
+  geom_point(data = marked_probe, color = "darkorange", size = 2.2) +
+  geom_text_repel(data = marked_probe, aes(label = probe), size = 3,
+                  max.overlaps = 1000, color = "black") +
+  geom_hline(aes(yintercept = -log10(0.05), linetype = "Significance Threshold-0.05"),
+             color = "red", linewidth = 0.8) +
+  scale_linetype_manual(name = "", values = c("Significance Threshold-0.05" = "dashed")) +
+  scale_x_continuous(
+    label = chr_levels,
+    breaks = sapply(chr_levels, function(chr) {
+      mean(temdata$pos_cum[temdata$chr == chr])
+    })
+  ) +
+    scale_y_continuous(
+  breaks = c(seq(0, 5, 1), seq(20, 25, 1)),  # Keep only ticks outside 5–15
+  limits = c(0, max(-log10(temdata$p), na.rm = TRUE))  # ensure upper bound fits all points
+) +
+  labs(x = "Chromosome", y = expression(-log[10](p)), title = "Manhattan Plot with Labeled Top Probes") +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

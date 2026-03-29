@@ -1,0 +1,651 @@
+---
+title: "DMR try 2"
+output: html_document
+date: "2025-04-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#load data
+```{r}
+# This will recreate in your workspace whatever was saved in the .RData file
+load("DMR_data2.RData")
+#DMR_data_filtered <- DMR_data[ DMR_data$CHR != "M" , ]
+#DMR_data <- DMR_data_filtered
+#save(DMR_data, file = "DMR_data2.RData")
+
+library(ENmix)
+###build q values formated data
+formatted_data_qval <- data.frame(
+  chr   = DMR_data$CHR,
+  start = DMR_data$MAPINFO,
+  end   = DMR_data$MAPINFO + 1L,   # integer addition
+  p     = DMR_data$qvals3,
+  probe = rownames(DMR_data))
+
+
+
+###build bacon values formated data
+formatted_data_bacon <- data.frame(
+  chr   = DMR_data$CHR,
+  start = DMR_data$MAPINFO,
+  end   = DMR_data$MAPINFO + 1L,   # integer addition
+  p     = DMR_data$bacon_pval3,
+  probe = rownames(DMR_data)) 
+
+formatted_data_p <- data.frame(
+  chr   = DMR_data$CHR,
+  start = DMR_data$MAPINFO,
+  end   = DMR_data$MAPINFO + 1L,   # integer addition
+  p     = DMR_data$P_Value,
+  probe = rownames(DMR_data))
+#)
+
+```
+
+
+#do for p,default parameter
+```{r}
+
+#try use default,distance can be set as 1000/500/800
+dmr_results_p <- ipdmr(
+  formatted_data_p,
+  include.all.sig.sites = TRUE,
+  dist.cutoff = 1000,  # 1k maximum distance between significant sites
+  bin.size = 200,       # ()bp minimum DMR size
+  seed = 1,         # p-value cutoff
+  region_plot = TRUE,  # Generate regional plots
+  mht_plot = TRUE,     # Generate Manhattan plots
+  verbose = TRUE       # Show progress messages
+)
+
+
+```
+###### bacon with bin size 310 and distance 2000
+```{r}
+
+#try use default,distance can be set as 1000/500/800
+dmr_results_bacon <- ipdmr(
+  formatted_data_bacon,
+  include.all.sig.sites = FALSE,
+  dist.cutoff = 2000,  # 1kb maximum distance between significant sites
+  bin.size = 310,       # 50bp minimum DMR size
+  seed = 0.05,         # p-value cutoff
+  region_plot = TRUE,  # Generate regional plots
+  mht_plot = TRUE,     # Generate Manhattan plots
+  verbose = TRUE       # Show progress messages
+)
+
+```
+#
+###### bacon with bin size 310
+```{r}
+
+#try use default,distance can be set as 1000/500/800
+dmr_results_bacon <- ipdmr(
+  formatted_data_bacon,
+  include.all.sig.sites = FALSE,
+  dist.cutoff = 1000,  # 1kb maximum distance between significant sites
+  bin.size = 310,       # 50bp minimum DMR size
+  seed = 0.05,         # p-value cutoff
+  region_plot = TRUE,  # Generate regional plots
+  mht_plot = TRUE,     # Generate Manhattan plots
+  verbose = TRUE       # Show progress messages
+)
+
+```
+########bacon bin size 800
+```{r}
+#try use default,distance can be set as 1000/500/800
+dmr_results_bacon <- ipdmr(
+  formatted_data_bacon,
+  include.all.sig.sites = FALSE,
+  dist.cutoff = 1000,  # 1kb maximum distance between significant sites
+  bin.size = 800,       # 50bp minimum DMR size
+  seed = 0.05,         # p-value cutoff
+  region_plot = TRUE,  # Generate regional plots
+  mht_plot = TRUE,     # Generate Manhattan plots
+  verbose = TRUE       # Show progress messages
+)
+```
+########bacon bin size 50
+```{r}
+#try use default,distance can be set as 1000/500/800
+dmr_results_bacon <- ipdmr(
+  formatted_data_bacon,
+  include.all.sig.sites = FALSE,
+  dist.cutoff = 1000,  # 1kb maximum distance between significant sites
+  bin.size = 50,       # 50bp minimum DMR size
+  seed = 0.05,         # p-value cutoff
+  region_plot = TRUE,  # Generate regional plots
+  mht_plot = TRUE,     # Generate Manhattan plots
+  verbose = TRUE       # Show progress messages
+)
+```
+
+
+#######try mht plot
+```{r}
+# For p-values (original)
+mhtplot(
+   probe =  formatted_data_p$probe,  
+  chr =  formatted_data_p$chr,        # Column name for chromosome
+  pos =  formatted_data_p$start,       # Column name for position
+  p =  formatted_data_p$p,            # Column name for p-values
+  col = "bg",
+ sigthre=1e-2 ,
+  outf= "mht_p"
+)
+```
+
+# For q-values (no region)
+```{r}
+
+mhtplot(
+   probe =  formatted_data_qval$probe,  
+  chr =  formatted_data_qval$chr,        # Column name for chromosome
+  pos =  formatted_data_qval$start,       # Column name for position
+  p =  formatted_data_qval$p,            # Column name for p-values
+  col = "bg",
+  sigthre=1e-2,
+  outf= "mht_q"
+)
+```
+# For bacon-values ()
+```{r}
+
+mhtplot(
+   probe =  formatted_data_bacon$probe,  
+  chr =  formatted_data_bacon$chr,        # Column name for chromosome
+  pos =  formatted_data_bacon$start,       # Column name for position
+  p =  formatted_data_bacon$p,            # Column name for p-values
+  col = "bg",
+  outf= "mht_bacon",
+  sigthre=1e-2
+)
+```
+
+
+
+
+
+
+
+############try draw diifernet color but blue and grey
+#try draw it manully by ggplot2:blue and grey
+```{r}
+# Load required packages
+library(ggplot2)
+library(dplyr)
+
+# Function to create a Manhattan plot
+mhtplot_ggplot <- function(probe = NULL, chr, start, p, col = "bg", sigthre = NULL, 
+                           outf = "mht", outfmt = "jpg", ...) {
+  
+  # Define the desired chromosome order
+  chr_levels <- c(as.character(1:22), "X", "Y")
+  
+  # Create data frame from input data (probe is optional)
+  if (!is.null(probe)) {
+    formatted_data_bacon <- data.frame(probe = probe, chr = chr, start = start, p = p)
+  } else {
+    formatted_data_bacon <- data.frame(chr = chr, start = start, p = p)
+  }
+  
+  # Debug: Print unique chr values to verify format
+  message("Unique chr values before filtering: ", paste(unique(formatted_data_bacon$chr), collapse = ", "))
+  
+  # Ensure chr is character for consistent matching
+  formatted_data_bacon <- formatted_data_bacon %>%
+    mutate(chr = as.character(chr)) %>%
+    filter(chr %in% chr_levels) %>%  # Remove unexpected chromosomes (e.g., "0")
+    mutate(chr = factor(chr, levels = chr_levels))  # Set correct order
+  
+  # Debug: Print unique chr values after filtering
+  message("Unique chr values after filtering: ", paste(unique(formatted_data_bacon$chr), collapse = ", "))
+  
+  # Calculate -log10(p-value) for y-axis
+  formatted_data_bacon <- formatted_data_bacon %>% 
+    mutate(neglog10p = -log10(p)) %>%
+    arrange(chr, start)  # Sort by chr (should respect factor levels), then start
+  
+  # Assign colors to alternate chromosomes
+  if (col == "bg") {
+    formatted_data_bacon$color <- c("blue", "grey")[as.numeric(formatted_data_bacon$chr) %% 2 + 1]
+  } else {
+    formatted_data_bacon$color <- col
+  }
+  
+  # Prepare data for x-axis (cumulative position across chromosomes)
+  chr_positions <- formatted_data_bacon %>%
+    group_by(chr) %>%
+    summarise(chr_len = max(start)) %>%  # Maximum start position per chromosome
+    arrange(factor(chr, levels = chr_levels)) %>%  # Ensure grouping respects factor levels
+    mutate(tot = cumsum(as.numeric(chr_len)) - chr_len) %>%  # Compute tot
+    select(-chr_len)
+  
+  # Join back and calculate cumulative positions
+  formatted_data_bacon <- formatted_data_bacon %>%
+    left_join(chr_positions, by = "chr") %>%
+    arrange(chr, start) %>%  # Re-sort by chr (factor levels), then start
+    mutate(BPcum = start + tot)  # Cumulative position for x-axis
+  
+  # Calculate axis positions for chromosome labels
+  axisdf <- formatted_data_bacon %>%
+    group_by(chr) %>%
+    summarize(center = (max(BPcum) + min(BPcum)) / 2) %>%
+    arrange(factor(chr, levels = chr_levels))  # Ensure axis labels follow factor levels
+  
+  # Create the plot
+  p <- ggplot(formatted_data_bacon, aes(x = BPcum, y = neglog10p, color = color)) +
+    geom_point(size = 1) +
+    scale_color_identity() +
+    scale_x_continuous(label = axisdf$chr, breaks = axisdf$center) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, max(formatted_data_bacon$neglog10p) * 1.1)) +
+    labs(x = "Chromosome", y = "-log10(P-value)") +
+    theme_minimal() +
+    theme(
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+  
+  # Add significance threshold
+  if (!is.null(sigthre)) {
+    p <- p + geom_hline(yintercept = -log10(sigthre), linetype = "dashed", color = "blue")
+  }
+  
+  # Save the plot
+  ggsave(filename = paste0(outf, ".", outfmt), plot = p, device = outfmt, ...)
+  
+  # Return the plot object
+  return(p)
+}
+
+# Example usage with formatted_data_bacon
+# Simulated data (replace with your actual formatted_data_bacon)
+set.seed(123)
+n <- 1000
+formatted_data_bacon <- data.frame(
+  probe = paste0("probe", 1:n),
+  chr = sample(c(1:22, "X", "Y"), n, replace = TRUE),  # Valid chromosomes
+  start = sample(1:1e6, n, replace = TRUE),
+  p = runif(n, 0, 1),
+  extra_col = sample(letters, n, replace = TRUE)  # Fifth column (unused)
+)
+
+# Call the function
+mhtplot_ggplot(
+  probe = formatted_data_bacon$probe,
+  chr = formatted_data_bacon$chr,
+  start = formatted_data_bacon$start,
+  p = formatted_data_bacon$p,
+  col = "bg",
+  outf = "mht_bacon",
+  sigthre = 1e-2,
+  outfmt = "jpg",
+  width = 10,
+  height = 6
+)
+```
+
+
+
+
+##############diff color
+```{r}
+# Load required packages
+library(ggplot2)
+library(dplyr)
+
+# Function to create a Manhattan plot
+mhtplot_ggplot <- function(probe = NULL, chr, start, p, col = "bg", sigthre = NULL, 
+                           outf = "mht", outfmt = "jpg", ...) {
+  
+  # Define the desired chromosome order
+  chr_levels <- c(as.character(1:22), "X", "Y")
+  
+  # Create data frame from input data (probe is optional)
+  if (!is.null(probe)) {
+    formatted_data_bacon <- data.frame(probe = probe, chr = chr, start = start, p = p)
+  } else {
+    formatted_data_bacon <- data.frame(chr = chr, start = start, p = p)
+  }
+  
+  # Debug: Print unique chr values to verify format
+  message("Unique chr values before filtering: ", paste(unique(formatted_data_bacon$chr), collapse = ", "))
+  
+  # Ensure chr is character for consistent matching
+  formatted_data_bacon <- formatted_data_bacon %>%
+    mutate(chr = as.character(chr)) %>%
+    filter(chr %in% chr_levels) %>%  # Remove unexpected chromosomes (e.g., "0")
+    mutate(chr = factor(chr, levels = chr_levels))  # Set correct order
+  
+  # Debug: Print unique chr values after filtering
+  message("Unique chr values after filtering: ", paste(unique(formatted_data_bacon$chr), collapse = ", "))
+  
+  # Calculate -log10(p-value) for y-axis
+  formatted_data_bacon <- formatted_data_bacon %>% 
+    mutate(neglog10p = -log10(p)) %>%
+    arrange(chr, start)  # Sort by chr (should respect factor levels), then start
+  
+  # Assign colors to chromosomes (more than 6 colors)
+  color_palette <- c("red", "blue", "green", "purple", "orange", "cyan")  # 6 distinct colors
+  if (col == "bg") {
+    # Assign colors by cycling through the palette based on chromosome position
+    formatted_data_bacon$color <- color_palette[as.numeric(formatted_data_bacon$chr) %% length(color_palette) + 1]
+  } else {
+    formatted_data_bacon$color <- col
+  }
+  
+  # Prepare data for x-axis (cumulative position across chromosomes)
+  chr_positions <- formatted_data_bacon %>%
+    group_by(chr) %>%
+    summarise(chr_len = max(start)) %>%  # Maximum start position per chromosome
+    arrange(factor(chr, levels = chr_levels)) %>%  # Ensure grouping respects factor levels
+    mutate(tot = cumsum(as.numeric(chr_len)) - chr_len) %>%  # Compute tot
+    select(-chr_len)
+  
+  # Join back and calculate cumulative positions
+  formatted_data_bacon <- formatted_data_bacon %>%
+    left_join(chr_positions, by = "chr") %>%
+    arrange(chr, start) %>%  # Re-sort by chr (factor levels), then start
+    mutate(BPcum = start + tot)  # Cumulative position for x-axis
+  
+  # Calculate axis positions for chromosome labels
+  axisdf <- formatted_data_bacon %>%
+    group_by(chr) %>%
+    summarize(center = (max(BPcum) + min(BPcum)) / 2) %>%
+    arrange(factor(chr, levels = chr_levels))  # Ensure axis labels follow factor levels
+  
+  # Create the plot
+  p <- ggplot(formatted_data_bacon, aes(x = BPcum, y = neglog10p, color = color)) +
+    geom_point(size = 1) +
+    scale_color_identity() +
+    scale_x_continuous(label = axisdf$chr, breaks = axisdf$center) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, max(formatted_data_bacon$neglog10p) * 1.1)) +
+    labs(x = "Chromosome", y = "-log10(P-value)") +
+    theme_minimal() +
+    theme(
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+  
+  # Add significance threshold
+  if (!is.null(sigthre)) {
+    p <- p + geom_hline(yintercept = -log10(sigthre), linetype = "dashed", color = "blue")
+  }
+  
+  # Save the plot
+  ggsave(filename = paste0(outf, ".", outfmt), plot = p, device = outfmt, ...)
+  
+  # Return the plot object
+  return(p)
+}
+
+
+
+# Call the function
+mhtplot_ggplot(
+  probe = formatted_data_bacon$probe,
+  chr = formatted_data_bacon$chr,
+  start = formatted_data_bacon$start,
+  p = formatted_data_bacon$p,
+  col = "bg",
+  outf = "mht_bacon",
+  sigthre = 1e-2,
+  outfmt = "jpg",
+  width = 10,
+  height = 6
+)
+```
+
+
+########try q value
+```{r}
+# Load required packages
+library(ggplot2)
+library(dplyr)
+
+# Function to create a Manhattan plot
+mhtplot_ggplot <- function(probe = NULL, chr, start, p, col = "bg", sigthre = NULL, 
+                           outf = "mht", outfmt = "jpg", ...) {
+  
+  # Define the desired chromosome order
+  chr_levels <- c(as.character(1:22), "X", "Y")
+  
+  # Create data frame from input data (probe is optional)
+  if (!is.null(probe)) {
+    formatted_data_qval <- data.frame(probe = probe, chr = chr, start = start, p = p)
+  } else {
+    formatted_data_qval <- data.frame(chr = chr, start = start, p = p)
+  }
+  
+  # Debug: Print unique chr values to verify format
+  message("Unique chr values before filtering: ", paste(unique(formatted_data_qval$chr), collapse = ", "))
+  
+  # Ensure chr is character for consistent matching
+  formatted_data_qval <- formatted_data_qval %>%
+    mutate(chr = as.character(chr)) %>%
+    filter(chr %in% chr_levels) %>%  # Remove unexpected chromosomes (e.g., "0")
+    mutate(chr = factor(chr, levels = chr_levels))  # Set correct order
+  
+  # Debug: Print unique chr values after filtering
+  message("Unique chr values after filtering: ", paste(unique(formatted_data_qval$chr), collapse = ", "))
+  
+  # Calculate -log10(q-value) for y-axis
+  formatted_data_qval <- formatted_data_qval %>% 
+    mutate(neglog10q = -log10(p)) %>%  # Use q-values instead of p-values
+    arrange(chr, start)  # Sort by chr (should respect factor levels), then start
+  
+  # Assign colors to chromosomes (more than 6 colors)
+  color_palette <- c("red", "blue", "green", "purple", "orange", "cyan")  # 6 distinct colors
+  if (col == "bg") {
+    # Assign colors by cycling through the palette based on chromosome position
+    formatted_data_qval$color <- color_palette[as.numeric(formatted_data_qval$chr) %% length(color_palette) + 1]
+  } else {
+    formatted_data_qval$color <- col
+  }
+  
+  # Prepare data for x-axis (cumulative position across chromosomes)
+  chr_positions <- formatted_data_qval %>%
+    group_by(chr) %>%
+    summarise(chr_len = max(start)) %>%  # Maximum start position per chromosome
+    arrange(factor(chr, levels = chr_levels)) %>%  # Ensure grouping respects factor levels
+    mutate(tot = cumsum(as.numeric(chr_len)) - chr_len) %>%  # Compute tot
+    select(-chr_len)
+  
+  # Join back and calculate cumulative positions
+  formatted_data_qval <- formatted_data_qval %>%
+    left_join(chr_positions, by = "chr") %>%
+    arrange(chr, start) %>%  # Re-sort by chr (factor levels), then start
+    mutate(BPcum = start + tot)  # Cumulative position for x-axis
+  
+  # Calculate axis positions for chromosome labels
+  axisdf <- formatted_data_qval %>%
+    group_by(chr) %>%
+    summarize(center = (max(BPcum) + min(BPcum)) / 2) %>%
+    arrange(factor(chr, levels = chr_levels))  # Ensure axis labels follow factor levels
+  
+  # Create the plot
+  p <- ggplot(formatted_data_qval, aes(x = BPcum, y = neglog10q, color = color)) +
+    geom_point(size = 1) +
+    scale_color_identity() +
+    scale_x_continuous(label = axisdf$chr, breaks = axisdf$center) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, max(formatted_data_qval$neglog10q) * 1.1)) +
+    labs(x = "Chromosome", y = "-log10(Q-value)") +  # Updated y-axis label for q-values
+    theme_minimal() +
+    theme(
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+  
+  # Add significance threshold
+  if (!is.null(sigthre)) {
+    p <- p + geom_hline(yintercept = -log10(sigthre), linetype = "dashed", color = "blue")
+  }
+  
+  # Save the plot
+  ggsave(filename = paste0(outf, ".", outfmt), plot = p, device = outfmt, ...)
+  
+  # Return the plot object
+  return(p)
+}
+
+
+
+# Call the function
+mhtplot_ggplot(
+  probe = formatted_data_qval$probe,
+  chr = formatted_data_qval$chr,
+  start = formatted_data_qval$start,
+  p = formatted_data_qval$p,
+  col = "bg",
+  outf = "mht_q_colorful",
+  sigthre = 1e-2,
+  outfmt = "jpg",
+  width = 10,
+  height = 6
+)
+```
+
+
+######## original p
+```{r}
+# Load required packages
+library(ggplot2)
+library(dplyr)
+
+# Function to create a Manhattan plot
+mhtplot_ggplot <- function(probe = NULL, chr, start, p, col = "bg", sigthre = NULL, 
+                           outf = "mht", outfmt = "jpg", ...) {
+  
+  # Define the desired chromosome order
+  chr_levels <- c(as.character(1:22), "X", "Y")
+  
+  # Create data frame from input data (probe is optional)
+  if (!is.null(probe)) {
+    formatted_data_p <- data.frame(probe = probe, chr = chr, start = start, p = p)
+  } else {
+    formatted_data_p <- data.frame(chr = chr, start = start, p = p)
+  }
+  
+  # Debug: Print unique chr values to verify format
+  message("Unique chr values before filtering: ", paste(unique(formatted_data_p$chr), collapse = ", "))
+  
+  # Ensure chr is character for consistent matching
+  formatted_data_p <- formatted_data_p %>%
+    mutate(chr = as.character(chr)) %>%
+    filter(chr %in% chr_levels) %>%  # Remove unexpected chromosomes (e.g., "0")
+    mutate(chr = factor(chr, levels = chr_levels))  # Set correct order
+  
+  # Debug: Print unique chr values after filtering
+  message("Unique chr values after filtering: ", paste(unique(formatted_data_p$chr), collapse = ", "))
+  
+  # Calculate -log10(p-value) for y-axis
+  formatted_data_p <- formatted_data_p %>% 
+    mutate(neglog10p = -log10(p)) %>%  # Use p-values
+    arrange(chr, start)  # Sort by chr (should respect factor levels), then start
+  
+  # Assign colors to chromosomes (more than 6 colors)
+  color_palette <- c("red", "blue", "green", "purple", "orange", "cyan")  # 6 distinct colors
+  if (col == "bg") {
+    # Assign colors by cycling through the palette based on chromosome position
+    formatted_data_p$color <- color_palette[as.numeric(formatted_data_p$chr) %% length(color_palette) + 1]
+  } else {
+    formatted_data_p$color <- col
+  }
+  
+  # Prepare data for x-axis (cumulative position across chromosomes)
+  chr_positions <- formatted_data_p %>%
+    group_by(chr) %>%
+    summarise(chr_len = max(start)) %>%  # Maximum start position per chromosome
+    arrange(factor(chr, levels = chr_levels)) %>%  # Ensure grouping respects factor levels
+    mutate(tot = cumsum(as.numeric(chr_len)) - chr_len) %>%  # Compute tot
+    select(-chr_len)
+  
+  # Join back and calculate cumulative positions
+  formatted_data_p <- formatted_data_p %>%
+    left_join(chr_positions, by = "chr") %>%
+    arrange(chr, start) %>%  # Re-sort by chr (factor levels), then start
+    mutate(BPcum = start + tot)  # Cumulative position for x-axis
+  
+  # Calculate axis positions for chromosome labels
+  axisdf <- formatted_data_p %>%
+    group_by(chr) %>%
+    summarize(center = (max(BPcum) + min(BPcum)) / 2) %>%
+    arrange(factor(chr, levels = chr_levels))  # Ensure axis labels follow factor levels
+  
+  # Create the plot
+  p <- ggplot(formatted_data_p, aes(x = BPcum, y = neglog10p, color = color)) +
+    geom_point(size = 1) +
+    scale_color_identity() +
+    scale_x_continuous(label = axisdf$chr, breaks = axisdf$center) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, max(formatted_data_p$neglog10p) * 1.1)) +
+    labs(x = "Chromosome", y = "-log10(P-value)") +  # Updated y-axis label for p-values
+    theme_minimal() +
+    theme(
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+  
+  # Add significance threshold
+  if (!is.null(sigthre)) {
+    p <- p + geom_hline(yintercept = -log10(sigthre), linetype = "dashed", color = "blue")
+  }
+  
+  # Save the plot
+  ggsave(filename = paste0(outf, ".", outfmt), plot = p, device = outfmt, ...)
+  
+  # Return the plot object
+  return(p)
+}
+
+# Example usage with formatted_data_p
+# Simulated DMR_data (replace with your actual DMR_data)
+set.seed(123)
+n <- 1000
+DMR_data <- data.frame(
+  CHR = sample(c(1:22, "X", "Y"), n, replace = TRUE),
+  MAPINFO = sample(1:1e6, n, replace = TRUE),
+  P_Value = runif(n, 0, 1)
+)
+rownames(DMR_data) <- paste0("probe", 1:n)
+
+# Build formatted_data_p from DMR_data
+formatted_data_p <- data.frame(
+  chr   = DMR_data$CHR,
+  start = DMR_data$MAPINFO,
+  end   = DMR_data$MAPINFO + 1L,   # integer addition
+  p     = DMR_data$P_Value,
+  probe = rownames(DMR_data)
+)
+
+# Call the function
+mhtplot_ggplot(
+  probe = formatted_data_p$probe,
+  chr = formatted_data_p$chr,
+  start = formatted_data_p$start,
+  p = formatted_data_p$p,
+  col = "bg",
+  outf = "mht_p_colorful",
+  sigthre = 1e-2,
+  outfmt = "jpg",
+  width = 10,
+  height = 6
+)
+```
+
+
+
+
+
+
+
+

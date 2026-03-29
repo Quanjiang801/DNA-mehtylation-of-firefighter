@@ -1,0 +1,194 @@
+---
+title: "draw mht plot for LMM"
+output: html_document
+date: "2025-05-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load data
+```{r}
+
+# This will recreate in your workspace whatever was saved in the .RData file
+load("DMR_data2.RData")
+#DMR_data_filtered <- DMR_data[ DMR_data$CHR != "M" , ]
+#DMR_data <- DMR_data_filtered
+# assuming your object is named DMR_data2 in your workspace
+#save(DMR_data, file = "DMR_data2.RData")
+
+library(ENmix)
+###build q values formated data
+formatted_data_qval <- data.frame(
+  chr   = DMR_data$CHR,
+  start = DMR_data$MAPINFO,
+  end   = DMR_data$MAPINFO + 1L,   # integer addition
+  p     = DMR_data$qvals3,
+  probe = rownames(DMR_data))
+
+
+
+###build bacon values formated data
+formatted_data_bacon <- data.frame(
+  chr   = DMR_data$CHR,
+  start = DMR_data$MAPINFO,
+  end   = DMR_data$MAPINFO + 1L,   # integer addition
+  p     = DMR_data$bacon_pval3,
+  probe = rownames(DMR_data)) 
+
+formatted_data_p <- data.frame(
+  chr   = DMR_data$CHR,
+  start = DMR_data$MAPINFO,
+  end   = DMR_data$MAPINFO + 1L,   # integer addition
+  p     = DMR_data$P_Value,
+  probe = rownames(DMR_data))
+#)
+
+```
+
+
+
+
+
+
+#define the function
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+mhtplot_ggplot <- function(probe = NULL, chr, start, p, col = "bg", sigthre = c(0.05, 0.01),
+                           outf = "mht", outfmt = "jpg", ...) {
+  
+  chr_levels <- c(as.character(1:22), "X", "Y")
+  
+  if (!is.null(probe)) {
+    formatted_data_p <- data.frame(probe = probe, chr = chr, start = start, p = p)
+  } else {
+    formatted_data_p <- data.frame(chr = chr, start = start, p = p)
+  }
+  
+  formatted_data_p <- formatted_data_p %>%
+    mutate(chr = as.character(chr)) %>%
+    filter(chr %in% chr_levels) %>%
+    mutate(chr = factor(chr, levels = chr_levels))
+  
+  formatted_data_p <- formatted_data_p %>%
+    mutate(neglog10p = -log10(p)) %>%
+    arrange(chr, start)
+  
+  color_palette <- c("red", "blue", "green", "purple", "orange", "cyan")
+  if (col == "bg") {
+    formatted_data_p$color <- color_palette[as.numeric(formatted_data_p$chr) %% length(color_palette) + 1]
+  } else {
+    formatted_data_p$color <- col
+  }
+  
+  chr_positions <- formatted_data_p %>%
+    group_by(chr) %>%
+    summarise(chr_len = max(start)) %>%
+    arrange(factor(chr, levels = chr_levels)) %>%
+    mutate(tot = cumsum(as.numeric(chr_len)) - chr_len) %>%
+    select(-chr_len)
+  
+  formatted_data_p <- formatted_data_p %>%
+    left_join(chr_positions, by = "chr") %>%
+    arrange(chr, start) %>%
+    mutate(BPcum = start + tot)
+  
+  axisdf <- formatted_data_p %>%
+    group_by(chr) %>%
+    summarize(center = (max(BPcum) + min(BPcum)) / 2) %>%
+    arrange(factor(chr, levels = chr_levels))
+  
+  p_plot <- ggplot(formatted_data_p, aes(x = BPcum, y = neglog10p, color = color)) +
+    geom_point(size = 1) +
+    scale_color_identity() +
+    scale_x_continuous(label = axisdf$chr, breaks = axisdf$center) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, max(formatted_data_p$neglog10p) * 1.1)) +
+    labs(x = "Chromosome", y = "-log10(P-value)") +
+    theme_minimal() +
+    theme(
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+  
+  # Add significance lines and labels
+  if (!is.null(sigthre)) {
+    sig_colors <- c("blue", "red", "black")  # Extendable if needed
+    for (i in seq_along(sigthre)) {
+      yval <- -log10(sigthre[i])
+sig_labels <- c("blue: p = 0.05", "red: p = 0.01")
+sig_colors <- c("blue", "red")
+
+x_pos <- max(formatted_data_p$BPcum) * 0.98
+y_top <- max(formatted_data_p$neglog10p)
+
+for (i in seq_along(sigthre)) {
+  yval <- -log10(sigthre[i])
+  
+  p_plot <- p_plot +
+    geom_hline(yintercept = yval, linetype = "dashed", color = sig_colors[i]) +
+    annotate("text",
+             x = x_pos,
+             y = y_top - (i - 1) * 0.4,
+             label = sig_labels[i],
+             hjust = 1, vjust = 1,
+             color = "black",  # text in black
+             size = 3.5)
+}
+
+
+    }
+  }
+  
+  # Save plot
+timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+ggsave(filename = paste0(outf, "_", timestamp, ".", outfmt), plot = p_plot, device = outfmt, ...)
+  
+  return(p_plot)
+}
+
+```
+#run the function for p value
+```{r}
+mhtplot_ggplot(
+  probe = formatted_data_p$probe,
+  chr = formatted_data_p$chr,
+  start = formatted_data_p$start,
+  p = formatted_data_p$p,
+  col = "bg",
+  sigthre = c(0.05, 0.01),
+  outf = "mht_p_colorful",
+  outfmt = "jpg",
+  width = 10,
+  height = 6
+)
+
+```
+
+#run the function for q value
+```{r}
+mhtplot_ggplot(
+  probe = formatted_data_qval$probe,
+  chr = formatted_data_qval$chr,
+  start = formatted_data_qval$start,
+  p = formatted_data_qval$p,
+  col = "bg",
+  sigthre = c(0.05, 0.01),
+  outf = "mht_q_colorful",
+  outfmt = "jpg",
+  width = 10,
+  height = 6
+)
+
+```
+
+
+
+
+
+
+
